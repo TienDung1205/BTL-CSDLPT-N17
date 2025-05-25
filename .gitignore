@@ -1,0 +1,4 @@
+ratings.dat
+__pycache__/
+*.pyc
+*.log
