@@ -1,0 +1,174 @@
+import mysql.connector
+
+def getopenconnection(user='root', password='123456', dbname='dds_assgn1'):
+    """
+    Tạo kết nối đến MySQL với database được chỉ định.
+    """
+    connection = mysql.connector.connect(
+        host='localhost',
+        user=user,
+        password=password,
+        database=dbname
+    )
+    return connection
+
+def loadratings(ratingstablename, ratingsfilepath, openconnection):
+    """
+    Hàm để nạp dữ liệu từ file @ratingsfilepath vào bảng @ratingstablename.
+    """
+    cur = openconnection.cursor()
+    # Xóa bảng nếu đã tồn tại
+    cur.execute(f"DROP TABLE IF EXISTS {ratingstablename}")
+    # Tạo bảng ratings với khóa chính
+    cur.execute(f"""
+        CREATE TABLE {ratingstablename} (
+            userid INT,
+            movieid INT,
+            rating FLOAT,
+            PRIMARY KEY (userid, movieid)
+        )
+    """)
+    # Đọc và chèn dữ liệu
+    with open(ratingsfilepath, 'r') as file:
+        for line in file:
+            userid, movieid, rating, _ = line.strip().split('::')
+            cur.execute(f"""
+                INSERT INTO {ratingstablename} (userid, movieid, rating)
+                VALUES (%s, %s, %s)
+            """, (int(userid), int(movieid), float(rating)))
+    openconnection.commit()
+    cur.close()
+
+def rangepartition(ratingstablename, numberofpartitions, openconnection):
+    """
+    Hàm để tạo các phân vùng của bảng chính dựa trên khoảng giá trị rating.
+    """
+    cur = openconnection.cursor()
+    delta = 5.0 / numberofpartitions
+    boundaries = [i * delta for i in range(numberofpartitions + 1)]
+    for i in range(numberofpartitions):
+        table_name = f"range_part{i}"
+        cur.execute(f"DROP TABLE IF EXISTS {table_name}")
+        cur.execute(f"""
+            CREATE TABLE {table_name} (
+                userid INT,
+                movieid INT,
+                rating FLOAT,
+                PRIMARY KEY (userid, movieid)
+            )
+        """)
+        lower_bound = boundaries[i]
+        upper_bound = boundaries[i + 1]
+        if i == numberofpartitions - 1:
+            cur.execute(f"""
+                INSERT INTO {table_name}
+                SELECT * FROM {ratingstablename}
+                WHERE rating >= %s AND rating <= %s
+            """, (lower_bound, upper_bound))
+        else:
+            cur.execute(f"""
+                INSERT INTO {table_name}
+                SELECT * FROM {ratingstablename}
+                WHERE rating >= %s AND rating < %s
+            """, (lower_bound, upper_bound))
+    openconnection.commit()
+    cur.close()
+
+def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
+    """
+    Hàm để tạo các phân vùng của bảng chính theo phương pháp round-robin.
+    """
+    cur = openconnection.cursor()
+    # Tạo bảng phân mảnh
+    for i in range(numberofpartitions):
+        table_name = f"rrobin_part{i}"
+        cur.execute(f"DROP TABLE IF EXISTS {table_name}")
+        cur.execute(f"""
+            CREATE TABLE {table_name} (
+                userid INT,
+                movieid INT,
+                rating FLOAT,
+                PRIMARY KEY (userid, movieid)
+            )
+        """)
+    # Phân bổ bản ghi
+    cur.execute(f"SELECT userid, movieid, rating FROM {ratingstablename}")
+    rows = cur.fetchall()
+    for idx, row in enumerate(rows):
+        table_name = f"rrobin_part{idx % numberofpartitions}"
+        cur.execute(f"""
+            INSERT INTO {table_name} (userid, movieid, rating)
+            VALUES (%s, %s, %s)
+        """, row)
+    openconnection.commit()
+    cur.close()
+
+def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
+    """
+    Hàm để chèn một dòng mới vào bảng chính và phân vùng round-robin.
+    """
+    cur = openconnection.cursor()
+    # Chèn vào bảng chính
+    cur.execute(f"""
+        INSERT INTO {ratingstablename} (userid, movieid, rating)
+        VALUES (%s, %s, %s)
+    """, (userid, itemid, rating))
+    # Tìm phân mảnh round-robin
+    cur.execute(f"SELECT COUNT(*) FROM {ratingstablename}")
+    total_rows = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE 'rrobin_part%'")
+    numberofpartitions = cur.fetchone()[0]
+    table_name = f"rrobin_part{(total_rows - 1) % numberofpartitions}"
+    cur.execute(f"""
+        INSERT INTO {table_name} (userid, movieid, rating)
+        VALUES (%s, %s, %s)
+    """, (userid, itemid, rating))
+    openconnection.commit()
+    cur.close()
+
+def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
+    """
+    Hàm để chèn một dòng mới vào bảng chính và phân vùng dựa trên rating.
+    """
+    cur = openconnection.cursor()
+    # Chèn vào bảng chính
+    cur.execute(f"""
+        INSERT INTO {ratingstablename} (userid, movieid, rating)
+        VALUES (%s, %s, %s)
+    """, (userid, itemid, rating))
+    # Tìm phân mảnh dựa trên rating
+    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE 'range_part%'")
+    numberofpartitions = cur.fetchone()[0]
+    delta = 5.0 / numberofpartitions
+    index = min(int(rating / delta), numberofpartitions - 1)
+    table_name = f"range_part{index}"
+    cur.execute(f"""
+        INSERT INTO {table_name} (userid, movieid, rating)
+        VALUES (%s, %s, %s)
+    """, (userid, itemid, rating))
+    openconnection.commit()
+    cur.close()
+
+def create_db(dbname):
+    """
+    Tạo một cơ sở dữ liệu bằng cách kết nối tới MySQL.
+    """
+    con = mysql.connector.connect(host='localhost', user='root', password='123456')
+    cur = con.cursor()
+    cur.execute("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = %s", (dbname,))
+    count = cur.fetchone()[0]
+    if count == 0:
+        cur.execute(f"CREATE DATABASE {dbname}")
+    con.commit()
+    cur.close()
+    con.close()
+
+def count_partitions(prefix, openconnection):
+    """
+    Hàm để đếm số bảng có tên bắt đầu với @prefix.
+    """
+    cur = openconnection.cursor()
+    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE %s", (f"{prefix}%",))
+    count = cur.fetchone()[0]
+    cur.close()
+    return count

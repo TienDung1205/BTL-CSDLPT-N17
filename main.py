@@ -1,27 +1,72 @@
-import mysql.connector
-from loadRatings import LoadRatings
-
+# Trình kiểm thử cho bài tập 1
+#
 DATABASE_NAME = 'dds_assgn1'
 
+# TODO: Thay đổi các giá trị này theo mã của bạn
 RATINGS_TABLE = 'ratings'
+RANGE_TABLE_PREFIX = 'range_part'
+RROBIN_TABLE_PREFIX = 'rrobin_part'
 USER_ID_COLNAME = 'userid'
 MOVIE_ID_COLNAME = 'movieid'
 RATING_COLNAME = 'rating'
-INPUT_FILE_PATH = 'ratings.dat'
-ACTUAL_ROWS_IN_INPUT_FILE = 20
+INPUT_FILE_PATH = 'test_data.dat'
+ACTUAL_ROWS_IN_INPUT_FILE = 20  # Số dòng trong file dữ liệu đầu vào
 
-if __name__ == "__main__":
-    # Kết nối cơ sở dữ liệu
-    conn = mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="mancity1903",
-        database=DATABASE_NAME
-    )
+import mysql.connector
+import traceback
+import testHelper
+import Interface as MyAssignment
 
-    # Gọi hàm LoadRatings với các tham số cần thiết
-    LoadRatings(conn, INPUT_FILE_PATH, RATINGS_TABLE, USER_ID_COLNAME, MOVIE_ID_COLNAME, RATING_COLNAME)
+if __name__ == '__main__':
+    try:
+        testHelper.createdb(DATABASE_NAME)
 
-    # Đóng kết nối sau khi hoàn thành
-    conn.close()
-    print("ok")
+        conn = testHelper.getopenconnection(dbname=DATABASE_NAME)
+
+        testHelper.deleteAllPublicTables(conn)
+
+        [result, e] = testHelper.testloadratings(MyAssignment, RATINGS_TABLE, INPUT_FILE_PATH, conn, ACTUAL_ROWS_IN_INPUT_FILE)
+        if result:
+            print("loadratings function pass!")
+        else:
+            print("loadratings function fail!")
+
+        [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
+        if result:
+            print("rangepartition function pass!")
+        else:
+            print("rangepartition function fail!")
+
+        # CẢNH BÁO:: Chỉ sử dụng một dòng tại một thời điểm, tức là chỉ bỏ comment một dòng và chạy script
+        [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 3, conn, '2')
+        # [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 0, conn, '0')
+        if result:
+            print("rangeinsert function pass!")
+        else:
+            print("rangeinsert function fail!")
+
+        testHelper.deleteAllPublicTables(conn)
+        MyAssignment.loadratings(RATINGS_TABLE, INPUT_FILE_PATH, conn)
+
+        [result, e] = testHelper.testroundrobinpartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
+        if result:
+            print("roundrobinpartition function pass!")
+        else:
+            print("roundrobinpartition function fail!")
+
+        # CẢNH BÁO:: Thay đổi chỉ số phân vùng theo thứ tự kiểm thử của bạn.
+        [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '0')
+        # [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '1')
+        # [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '2')
+        if result:
+            print("roundrobininsert function pass!")
+        else:
+            print("roundrobininsert function fail!")
+
+        choice = input('Nhấn enter để xóa tất cả các bảng? ')
+        if choice == '':
+            testHelper.deleteAllPublicTables(conn)
+        conn.close()
+
+    except Exception as detail:
+        traceback.print_exc()
