@@ -1,8 +1,10 @@
 import mysql.connector
 
+DATABASE_NAME = 'dds_assgn1'
+
 def getopenconnection(user='root', password='123456', dbname='dds_assgn1'):
     """
-    Tạo kết nối đến MySQL với database được chỉ định.
+    Tạo kết nối đến MySQL.
     """
     connection = mysql.connector.connect(
         host='localhost',
@@ -16,19 +18,13 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     """
     Hàm để nạp dữ liệu từ file @ratingsfilepath vào bảng @ratingstablename.
     """
+    create_db(DATABASE_NAME)
     cur = openconnection.cursor()
     # Xóa bảng nếu đã tồn tại
-    cur.execute(f"DROP TABLE IF EXISTS {ratingstablename}")
-    # Tạo bảng ratings với khóa chính
-    cur.execute(f"""
-        CREATE TABLE {ratingstablename} (
-            userid INT,
-            movieid INT,
-            rating FLOAT,
-            PRIMARY KEY (userid, movieid)
-        )
-    """)
-    # Đọc và chèn dữ liệu
+    cur.execute("DROP TABLE IF EXISTS {0}".format(ratingstablename))
+    # Tạo bảng ratings
+    cur.execute("CREATE TABLE {0} (userid INT, movieid INT, rating FLOAT)".format(ratingstablename))
+     # Đọc và chèn dữ liệu
     with open(ratingsfilepath, 'r') as file:
         for line in file:
             userid, movieid, rating, _ = line.strip().split('::')
@@ -53,23 +49,22 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
             CREATE TABLE {table_name} (
                 userid INT,
                 movieid INT,
-                rating FLOAT,
-                PRIMARY KEY (userid, movieid)
+                rating FLOAT
             )
         """)
         lower_bound = boundaries[i]
         upper_bound = boundaries[i + 1]
-        if i == numberofpartitions - 1:
+        if i == 0:
             cur.execute(f"""
                 INSERT INTO {table_name}
-                SELECT * FROM {ratingstablename}
+                SELECT * FROM {ratingstablename}    
                 WHERE rating >= %s AND rating <= %s
             """, (lower_bound, upper_bound))
         else:
             cur.execute(f"""
                 INSERT INTO {table_name}
                 SELECT * FROM {ratingstablename}
-                WHERE rating >= %s AND rating < %s
+                WHERE rating > %s AND rating <= %s
             """, (lower_bound, upper_bound))
     openconnection.commit()
     cur.close()
@@ -82,17 +77,10 @@ def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
     # Tạo bảng phân mảnh
     for i in range(numberofpartitions):
         table_name = f"rrobin_part{i}"
-        cur.execute(f"DROP TABLE IF EXISTS {table_name}")
-        cur.execute(f"""
-            CREATE TABLE {table_name} (
-                userid INT,
-                movieid INT,
-                rating FLOAT,
-                PRIMARY KEY (userid, movieid)
-            )
-        """)
+        cur.execute("DROP TABLE IF EXISTS {0}".format(table_name))
+        cur.execute("CREATE TABLE {0} (userid INT, movieid INT, rating FLOAT)".format(table_name))
     # Phân bổ bản ghi
-    cur.execute(f"SELECT userid, movieid, rating FROM {ratingstablename}")
+    cur.execute("SELECT userid, movieid, rating FROM {0}".format(ratingstablename))
     rows = cur.fetchall()
     for idx, row in enumerate(rows):
         table_name = f"rrobin_part{idx % numberofpartitions}"
@@ -109,10 +97,7 @@ def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
     """
     cur = openconnection.cursor()
     # Chèn vào bảng chính
-    cur.execute(f"""
-        INSERT INTO {ratingstablename} (userid, movieid, rating)
-        VALUES (%s, %s, %s)
-    """, (userid, itemid, rating))
+    cur.execute("INSERT INTO {0} (userid, movieid, rating) VALUES ({1}, {2}, {3})".format(ratingstablename, userid, itemid, rating))
     # Tìm phân mảnh round-robin
     cur.execute(f"SELECT COUNT(*) FROM {ratingstablename}")
     total_rows = cur.fetchone()[0]
@@ -142,7 +127,7 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
     delta = 5.0 / numberofpartitions
     index = min(int(rating / delta), numberofpartitions - 1)
     table_name = f"range_part{index}"
-    cur.execute(f"""
+    cur.execute(f""" 
         INSERT INTO {table_name} (userid, movieid, rating)
         VALUES (%s, %s, %s)
     """, (userid, itemid, rating))
@@ -155,11 +140,11 @@ def create_db(dbname):
     """
     con = mysql.connector.connect(host='localhost', user='root', password='123456')
     cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = %s", (dbname,))
+    cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s", (dbname,))
     count = cur.fetchone()[0]
     if count == 0:
-        cur.execute(f"CREATE DATABASE {dbname}")
-    con.commit()
+        cur.execute("CREATE DATABASE %s", (dbname,))
+
     cur.close()
     con.close()
 

@@ -28,7 +28,7 @@ def createdb(dbname):
     cur = con.cursor()
 
     # Check if an existing database with the same name exists
-    cur.execute("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = %s", (dbname,))
+    cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s", (dbname,))
     count = cur.fetchone()[0]
     if count == 0:
         cur.execute('CREATE DATABASE %s' % (dbname,))  # Create the database
@@ -42,7 +42,7 @@ def createdb(dbname):
 def delete_db(dbname):
     con = getopenconnection(dbname='mysql')
     cur = con.cursor()
-    cur.execute('DROP DATABASE IF EXISTS %s' % (dbname,))
+    cur.execute('DROP DATABASE ' + dbname)
     cur.close()
     con.close()
 
@@ -53,7 +53,7 @@ def deleteAllPublicTables(openconnection):
     for row in cur:
         l.append(row[0])
     for tablename in l:
-        cur.execute("DROP TABLE IF EXISTS %s" % (tablename,))
+        cur.execute("DROP TABLE IF EXISTS {0}".format(tablename))
     openconnection.commit()
     cur.close()
 
@@ -70,12 +70,12 @@ def getCountrangepartition(ratingstablename, numberofpartitions, openconnection)
     cur = openconnection.cursor()
     countList = []
     interval = 5.0 / numberofpartitions
-    cur.execute("SELECT COUNT(*) FROM %s WHERE rating >= %s AND rating <= %s" % (ratingstablename, 0, interval))
+    cur.execute("SELECT COUNT(*) FROM {0} WHERE rating >= {1} AND rating <= {2}".format(ratingstablename, 0, interval))
     countList.append(int(cur.fetchone()[0]))
 
     lowerbound = interval
     for i in range(1, numberofpartitions):
-        cur.execute("SELECT COUNT(*) FROM %s WHERE rating > %s AND rating <= %s" % (ratingstablename, lowerbound, lowerbound + interval))
+        cur.execute("SELECT COUNT(*) FROM {0} WHERE rating > {1} AND rating <= {2}".format(ratingstablename, lowerbound, lowerbound + interval))
         lowerbound += interval
         countList.append(int(cur.fetchone()[0]))
 
@@ -93,29 +93,31 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
     cur = openconnection.cursor()
     countList = []
     for i in range(0, numberofpartitions):
-        cur.execute(
-            "SELECT COUNT(*) FROM (SELECT ROW_NUMBER() OVER () AS rnum, * FROM %s) AS temp WHERE (rnum-1) %% %s = %s" % (
-                ratingstablename, numberofpartitions, i))
-        countList.append(int(cur.fetchone()[0]))
-
+        cur.execute("SELECT userid, movieid, rating FROM {0}".format(ratingstablename))
+        rows = cur.fetchall()
+        count = 0
+        for idx, row in enumerate(rows):
+            if idx % numberofpartitions == i:
+                count += 1
+        countList.append(count)
     cur.close()
     return countList
 
 # Helpers for Tester functions
 def checkpartitioncount(cursor, expectedpartitions, prefix):
     cursor.execute(
-        "SELECT COUNT(table_name) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE %s" % (prefix + '%',))
+        "SELECT COUNT(table_name) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '{0}%';".format(prefix))
     count = int(cursor.fetchone()[0])
     if count != expectedpartitions:
         raise Exception(
-            'Range partitioning not done properly. Expected %s table(s) but found %s table(s)' % (
+            'Range partitioning not done properly. Expected {0} table(s) but found {1} table(s)'.format(
                 expectedpartitions, count))
 
 def totalrowsinallpartitions(cur, n, rangepartitiontableprefix, partitionstartindex):
     selects = []
     for i in range(partitionstartindex, n + partitionstartindex):
-        selects.append('SELECT * FROM %s%s' % (rangepartitiontableprefix, i))
-    cur.execute('SELECT COUNT(*) FROM (%s) AS T' % (' UNION ALL '.join(selects)))
+        selects.append('SELECT * FROM {0}{1}'.format(rangepartitiontableprefix, i))
+    cur.execute('SELECT COUNT(*) FROM ({0}) AS T'.format(' UNION ALL '.join(selects)))
     count = int(cur.fetchone()[0])
     return count
 
@@ -153,8 +155,8 @@ def testrangeandrobinpartitioning(n, openconnection, rangepartitiontableprefix, 
 def testrangerobininsert(expectedtablename, itemid, openconnection, rating, userid):
     cur = openconnection.cursor()
     cur.execute(
-        'SELECT COUNT(*) FROM %s WHERE %s = %s AND %s = %s AND %s = %s' % (
-            expectedtablename, USER_ID_COLNAME, userid, MOVIE_ID_COLNAME, itemid, RATING_COLNAME, rating))
+        'SELECT COUNT(*) FROM {0} WHERE {4} = {1} AND {5} = {2} AND {6} = {3}'.format(
+            expectedtablename, userid, itemid, rating, USER_ID_COLNAME, MOVIE_ID_COLNAME, RATING_COLNAME))
     count = int(cur.fetchone()[0])
     cur.close()
     if count != 1:
@@ -165,10 +167,10 @@ def testEachRangePartition(ratingstablename, n, openconnection, rangepartitionta
     countList = getCountrangepartition(ratingstablename, n, openconnection)
     cur = openconnection.cursor()
     for i in range(0, n):
-        cur.execute("SELECT COUNT(*) FROM %s%s" % (rangepartitiontableprefix, i))
+        cur.execute("SELECT COUNT(*) FROM {0}{1}".format(rangepartitiontableprefix, i))
         count = int(cur.fetchone()[0])
         if count != countList[i]:
-            raise Exception("%s%s has %s of rows while the correct number should be %s" % (
+            raise Exception("{0}{1} has {2} of rows while the correct number should be {3}".format(
                 rangepartitiontableprefix, i, count, countList[i]))
     cur.close()
 
@@ -176,10 +178,10 @@ def testEachRoundrobinPartition(ratingstablename, n, openconnection, roundrobinp
     countList = getCountroundrobinpartition(ratingstablename, n, openconnection)
     cur = openconnection.cursor()
     for i in range(0, n):
-        cur.execute("SELECT COUNT(*) FROM %s%s" % (roundrobinpartitiontableprefix, i))
+        cur.execute("SELECT COUNT(*) FROM {0}{1}".format(roundrobinpartitiontableprefix, i))
         count = cur.fetchone()[0]
         if count != countList[i]:
-            raise Exception("%s%s has %s of rows while the correct number should be %s" % (
+            raise Exception("{0}{1} has {2} of rows while the correct number should be {3}".format(
                 roundrobinpartitiontableprefix, i, count, countList[i]))
     cur.close()
 
@@ -198,12 +200,12 @@ def testloadratings(MyAssignment, ratingstablename, filepath, openconnection, ro
         MyAssignment.loadratings(ratingstablename, filepath, openconnection)
         # Test 1: Count the number of rows inserted
         cur = openconnection.cursor()
-        cur.execute('SELECT COUNT(*) FROM %s' % (ratingstablename,))
+        cur.execute('SELECT COUNT(*) FROM {0}'.format(ratingstablename))
         count = int(cur.fetchone()[0])
         cur.close()
         if count != rowsininpfile:
             raise Exception(
-                'Expected %s rows, but %s rows in "%s" table' % (rowsininpfile, count, ratingstablename))
+                'Expected {0} rows, but {1} rows in "{2}" table'.format(rowsininpfile, count, ratingstablename))
     except Exception as e:
         traceback.print_exc()
         return [False, e]
@@ -262,7 +264,7 @@ def testroundrobininsert(MyAssignment, ratingstablename, userid, itemid, rating,
         MyAssignment.roundrobininsert(ratingstablename, userid, itemid, rating, openconnection)
         if not testrangerobininsert(expectedtablename, itemid, openconnection, rating, userid):
             raise Exception(
-                'Round robin insert failed! Couldn\'t find (%s, %s, %s) tuple in %s table' % (userid, itemid, rating,
+                'Round robin insert failed! Couldn\'t find ({0}, {1}, {2}) tuple in {3} table'.format(userid, itemid, rating,
                                                                                               expectedtablename))
     except Exception as e:
         traceback.print_exc()
@@ -285,7 +287,7 @@ def testrangeinsert(MyAssignment, ratingstablename, userid, itemid, rating, open
         MyAssignment.rangeinsert(ratingstablename, userid, itemid, rating, openconnection)
         if not testrangerobininsert(expectedtablename, itemid, openconnection, rating, userid):
             raise Exception(
-                'Range insert failed! Couldn\'t find (%s, %s, %s) tuple in %s table' % (userid, itemid, rating,
+                'Range insert failed! Couldn\'t find ({0}, {1}, {2}) tuple in {3} table'.format(userid, itemid, rating,
                                                                                         expectedtablename))
     except Exception as e:
         traceback.print_exc()

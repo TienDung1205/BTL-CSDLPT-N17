@@ -1,8 +1,5 @@
-# Trình kiểm thử cho bài tập 1
-#
 DATABASE_NAME = 'dds_assgn1'
 
-# TODO: Thay đổi các giá trị này theo mã của bạn
 RATINGS_TABLE = 'ratings'
 RANGE_TABLE_PREFIX = 'range_part'
 RROBIN_TABLE_PREFIX = 'rrobin_part'
