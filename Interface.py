@@ -25,15 +25,36 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     # Tạo bảng ratings
     cur.execute("CREATE TABLE {0} (userid INT, movieid INT, rating FLOAT)".format(ratingstablename))
      # Đọc và chèn dữ liệu
-    with open(ratingsfilepath, 'r') as file:
-        for line in file:
-            userid, movieid, rating, _ = line.strip().split('::')
-            cur.execute(f"""
-                INSERT INTO {ratingstablename} (userid, movieid, rating)
-                VALUES (%s, %s, %s)
-            """, (int(userid), int(movieid), float(rating)))
-    openconnection.commit()
+    batch = []
+    count = 0
+
+    with open(ratingsfilepath, "r", encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split("::")
+            if len(parts) == 4:
+                user, movie, rating, _ = parts
+                batch.append((int(user), int(movie), float(rating)))
+                count += 1
+
+                if len(batch) == 1000000:
+                    cur.executemany(
+                        f"INSERT IGNORE INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
+                        batch
+                    )
+                    openconnection.commit()
+                    print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # In tổng số dòng đã thêm
+                    batch.clear()
+
+    if batch:
+        cur.executemany(
+            f"INSERT IGNORE INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
+            batch
+        )
+        openconnection.commit()
+        print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # Thông báo cho batch cuối
+
     cur.close()
+    print(f"Tải dữ liệu thành công: {count} dòng được chèn vào bảng {ratingstablename}.")
 
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """
@@ -79,15 +100,18 @@ def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
         table_name = f"rrobin_part{i}"
         cur.execute("DROP TABLE IF EXISTS {0}".format(table_name))
         cur.execute("CREATE TABLE {0} (userid INT, movieid INT, rating FLOAT)".format(table_name))
-    # Phân bổ bản ghi
-    cur.execute("SELECT userid, movieid, rating FROM {0}".format(ratingstablename))
-    rows = cur.fetchall()
-    for idx, row in enumerate(rows):
-        table_name = f"rrobin_part{idx % numberofpartitions}"
-        cur.execute(f"""
-            INSERT INTO {table_name} (userid, movieid, rating)
-            VALUES (%s, %s, %s)
-        """, row)
+        cur.execute(f"""INSERT INTO {table_name} (userid, movieid, rating) SELECT userid, movieid, rating
+                    FROM (
+                        SELECT 
+                            ROW_NUMBER() OVER () AS rnum,
+                            userid,
+                            movieid,
+                            rating
+                        FROM ratings
+                    ) AS temp
+                    WHERE (rnum-1) % {numberofpartitions} = {i}
+        """)
+        print(f"Đã tạo phân vùng {table_name} với round-robin.")
     openconnection.commit()
     cur.close()
 

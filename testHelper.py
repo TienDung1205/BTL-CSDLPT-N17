@@ -93,13 +93,10 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
     cur = openconnection.cursor()
     countList = []
     for i in range(0, numberofpartitions):
-        cur.execute("SELECT userid, movieid, rating FROM {0}".format(ratingstablename))
-        rows = cur.fetchall()
-        count = 0
-        for idx, row in enumerate(rows):
-            if idx % numberofpartitions == i:
-                count += 1
-        countList.append(count)
+        cur.execute(
+            "SELECT COUNT(*) FROM (SELECT *, ROW_NUMBER() OVER () AS rnum FROM {0}) AS temp WHERE (rnum-1)%{1}= {2}".format(
+                ratingstablename, numberofpartitions, i))
+        countList.append(int(cur.fetchone()[0]))
     cur.close()
     return countList
 
