@@ -13,6 +13,7 @@ import mysql.connector
 import traceback
 import testHelper
 import Interface as MyAssignment
+import re 
 
 if __name__ == '__main__':
     try:
@@ -59,7 +60,6 @@ if __name__ == '__main__':
             print("roundrobininsert function pass!")
         else:
             print("roundrobininsert function fail!")
-
         choice = input('Nhấn enter để xóa tất cả các bảng? ')
         if choice == '':
             testHelper.deleteAllPublicTables(conn)

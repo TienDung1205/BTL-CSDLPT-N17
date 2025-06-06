@@ -8,7 +8,7 @@ USER_ID_COLNAME = 'userid'
 MOVIE_ID_COLNAME = 'movieid'
 RATING_COLNAME = 'rating'
 
-def getopenconnection(user='root', password='123456', dbname='mysql'):
+def getopenconnection(user='root', password='123456789', dbname='mysql'):
     return mysql.connector.connect(
         host='localhost',
         user=user,
