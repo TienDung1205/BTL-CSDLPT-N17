@@ -6,8 +6,8 @@ RROBIN_TABLE_PREFIX = 'rrobin_part'
 USER_ID_COLNAME = 'userid'
 MOVIE_ID_COLNAME = 'movieid'
 RATING_COLNAME = 'rating'
-INPUT_FILE_PATH = 'ratings.dat'
-ACTUAL_ROWS_IN_INPUT_FILE = 10000054  # Số dòng trong file dữ liệu đầu vào
+INPUT_FILE_PATH = 'test_data.dat'
+ACTUAL_ROWS_IN_INPUT_FILE = 20  # Số dòng trong file dữ liệu đầu vào
 
 import mysql.connector
 import traceback
@@ -28,14 +28,14 @@ if __name__ == '__main__':
         else:
             print("loadratings function fail!")
 
-        [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
+        [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 10, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
         if result:
             print("rangepartition function pass!")
         else:
             print("rangepartition function fail!")
 
         # CẢNH BÁO:: Chỉ sử dụng một dòng tại một thời điểm, tức là chỉ bỏ comment một dòng và chạy script
-        [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 3, conn, '2')
+        [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 3, conn, '5')
         # [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 0, conn, '0')
         if result:
             print("rangeinsert function pass!")

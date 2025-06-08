@@ -149,7 +149,9 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
     cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE 'range_part%'")
     numberofpartitions = cur.fetchone()[0]
     delta = 5.0 / numberofpartitions
-    index = min(int(rating / delta), numberofpartitions - 1)
+    index = min(int(rating / delta) - 1 if rating == int(rating) else int(rating / delta), numberofpartitions - 1)
+    if index < 0:
+        index = 0
     table_name = f"range_part{index}"
     cur.execute(f""" 
         INSERT INTO {table_name} (userid, movieid, rating)
