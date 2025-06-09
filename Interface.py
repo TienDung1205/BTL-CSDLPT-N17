@@ -42,7 +42,7 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
                         batch
                     )
                     openconnection.commit()
-                    print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # In tổng số dòng đã thêm
+                    print(f"Đã thêm {count} bản ghi vào bảng {ratingstablename}.")  # In tổng số dòng đã thêm
                     batch.clear()
 
     if batch:
@@ -51,10 +51,10 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
             batch
         )
         openconnection.commit()
-        print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # Thông báo cho batch cuối
+        print(f"Đã thêm {count} bản ghi vào bảng {ratingstablename}.")  # Thông báo cho batch cuối
 
     cur.close()
-    print(f"Tải dữ liệu thành công: {count} dòng được chèn vào bảng {ratingstablename}.")
+    print(f"Tải dữ liệu thành công: {count} bản ghi đã thêm vào bảng {ratingstablename}.")
 
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """

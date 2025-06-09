@@ -32,6 +32,7 @@ def createdb(dbname):
     count = cur.fetchone()[0]
     if count == 0:
         cur.execute('CREATE DATABASE %s' % (dbname,))  # Create the database
+        print('Database "{0}" created successfully'.format(dbname))
     else:
         print('A database named "{0}" already exists'.format(dbname))
 
