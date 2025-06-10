@@ -38,23 +38,23 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
 
                 if len(batch) == 1000000:
                     cur.executemany(
-                        f"INSERT IGNORE INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
+                        f"INSERT INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
                         batch
                     )
                     openconnection.commit()
-                    print(f"Đã thêm {count} bản ghi vào bảng {ratingstablename}.")  # In tổng số dòng đã thêm
+                    print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # In tổng số dòng đã thêm
                     batch.clear()
 
     if batch:
         cur.executemany(
-            f"INSERT IGNORE INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
+            f"INSERT INTO {ratingstablename} (userid, movieid, rating) VALUES (%s, %s, %s)",
             batch
         )
         openconnection.commit()
-        print(f"Đã thêm {count} bản ghi vào bảng {ratingstablename}.")  # Thông báo cho batch cuối
+        print(f"Đã thêm {count} dòng vào bảng {ratingstablename}.")  # Thông báo cho batch cuối
 
     cur.close()
-    print(f"Tải dữ liệu thành công: {count} bản ghi đã thêm vào bảng {ratingstablename}.")
+    print(f"Tải dữ liệu thành công: {count} dòng được chèn vào bảng {ratingstablename}.")
 
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """

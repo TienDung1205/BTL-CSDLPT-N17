@@ -13,7 +13,8 @@ def getopenconnection(user='root', password='123456', dbname='mysql'):
         host='localhost',
         user=user,
         password=password,
-        database=dbname
+        database=dbname,
+        allow_local_infile=True  # Cho phép nạp dữ liệu từ file cục bộ
     )
 
 # SETUP Functions
