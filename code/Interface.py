@@ -87,6 +87,7 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
                 SELECT * FROM {ratingstablename}
                 WHERE rating > %s AND rating <= %s
             """, (lower_bound, upper_bound))
+        print(f"Đã tạo phân vùng {table_name} với khoảng giá trị từ {lower_bound} đến {upper_bound}.")
     openconnection.commit()
     cur.close()
 
